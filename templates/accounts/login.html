@@ -1,0 +1,71 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Chicken Vision</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'monitoring/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/app.css' %}">
+</head>
+<body>
+<div class="auth">
+  <section class="auth-brand">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M17 8.5c0-3-2.5-5-5.5-5S6 5.5 6 10c0 1.6.5 3 1.4 4.1-.9 1-1.4 2.3-1.4 3.6h4.2c3 0 5.6-1.6 6.6-4.1 1.5 0 2.7-1 2.7-2.5S18.3 8.5 17 8.5Z" fill="currentColor"/>
+          <circle cx="15.4" cy="7.6" r="0.9" fill="#0f6a47"/>
+        </svg>
+      </span>
+      <span class="brand-text"><strong>Chicken Vision</strong><span>Poultry intelligence</span></span>
+    </div>
+
+    <div>
+      <h2>Every bird counted.<br>Every movement understood.</h2>
+      <p>YOLOv11 detection and DeepSORT tracking turn ordinary cameras into a live headcount, with alerts when the house needs you.</p>
+      <div class="auth-points">
+        <div class="auth-point"><span class="tick">✓</span><span>Unique-bird counting that survives occlusion and re-entry</span></div>
+        <div class="auth-point"><span class="tick">✓</span><span>Directional IN / OUT movement across a counting line</span></div>
+        <div class="auth-point"><span class="tick">✓</span><span>Recorded runs with annotated video, tracks and CSV export</span></div>
+        <div class="auth-point"><span class="tick">✓</span><span>Role-based access, audit trail and encrypted sessions</span></div>
+      </div>
+    </div>
+
+    <p class="auth-foot">Runs on commodity hardware — no GPU required.</p>
+  </section>
+
+  <section class="auth-form">
+    <div class="auth-card">
+      <h1>Welcome back</h1>
+      <p>Sign in to monitor your poultry houses.</p>
+
+      {% if throttled %}
+        <div class="message error">Too many sign-in attempts. Please wait five minutes and try again.</div>
+      {% endif %}
+      {% if form.non_field_errors %}
+        <div class="message error">Incorrect username or password.</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}" class="form-grid" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next|default:'' }}">
+        <div class="field">
+          <label for="id_username">Username</label>
+          <input class="input" type="text" name="username" id="id_username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
+        </div>
+        <div class="field">
+          <label for="id_password">Password</label>
+          <input class="input" type="password" name="password" id="id_password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+      </form>
+
+      <p class="auth-foot">
+        Access is limited to authorised farm staff. Sessions expire after 12 hours of inactivity,
+        and all sign-in attempts are logged.
+      </p>
+    </div>
+  </section>
+</div>
+</body>
+</html>

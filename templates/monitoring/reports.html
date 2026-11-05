@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+{% block page_subtitle %}Daily counts and movement totals by camera{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:reports_export' %}?days={{ days }}">Export CSV</a>
+{% endblock %}
+
+{% block content %}
+<div class="tabs" role="tablist">
+  <a class="tab {% if days == 1 %}is-active{% endif %}" href="{% url 'monitoring:reports' %}?days=1">Today</a>
+  <a class="tab {% if days == 7 %}is-active{% endif %}" href="{% url 'monitoring:reports' %}?days=7">7 days</a>
+  <a class="tab {% if days == 30 %}is-active{% endif %}" href="{% url 'monitoring:reports' %}?days=30">30 days</a>
+  <a class="tab {% if days == 90 %}is-active{% endif %}" href="{% url 'monitoring:reports' %}?days=90">90 days</a>
+</div>
+
+<div class="grid grid-4">
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Runs</span>
+    <span class="stat-value">{{ totals.runs }}</span>
+    <span class="stat-foot">last {{ days }} day{{ days|pluralize }}</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent is-amber"></span>
+    <span class="stat-label">Birds counted</span>
+    <span class="stat-value">{{ totals.unique }}</span>
+    <span class="stat-foot">sum of unique birds per run</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Inward crossings</span>
+    <span class="stat-value">{{ totals.line_in }}</span>
+    <span class="stat-foot">across all counting lines</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent {% if totals.line_out > totals.line_in %}is-red{% else %}is-muted{% endif %}"></span>
+    <span class="stat-label">Outward crossings</span>
+    <span class="stat-value">{{ totals.line_out }}</span>
+    <span class="stat-foot">net {{ totals.net }} on inward flow</span>
+  </div>
+</div>
+
+<div class="card mt-16">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Camera</th>
+          <th>Source</th>
+          <th class="num">Runs</th>
+          <th class="num">Unique</th>
+          <th class="num">Peak</th>
+          <th class="num">Average</th>
+          <th class="num">IN</th>
+          <th class="num">OUT</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="nowrap">{{ row.day|date:"d M Y" }}</td>
+            <td class="row-title">{{ row.camera__name|default:"All cameras" }}</td>
+            <td class="muted">{{ row.source_type }}</td>
+            <td class="num">{{ row.runs }}</td>
+            <td class="num">{{ row.unique|default:0 }}</td>
+            <td class="num">{{ row.peak|default:0 }}</td>
+            <td class="num">{{ row.average|floatformat:1|default:0 }}</td>
+            <td class="num">{{ row.line_in|default:0 }}</td>
+            <td class="num">{{ row.line_out|default:0 }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9">
+              <div class="empty">
+                <strong>No runs in this period</strong>
+                <p>Counts will appear here once detection runs have completed.</p>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="helptext mt-8">
+  Totals add up per-run unique counts, so a bird seen in two runs is counted twice — treat the figure as activity,
+  not a census. Export the CSV for reconciliation against your flock records.
+</p>
+{% endblock %}

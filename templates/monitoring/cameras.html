@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}Cameras{% endblock %}
+{% block page_title %}Cameras{% endblock %}
+{% block page_subtitle %}Fixed streams watching each poultry house{% endblock %}
+
+{% block header_actions %}
+  {% if request.user.is_manager %}
+    <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:video_upload' %}">Analyse footage</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'monitoring:camera_create' %}">Add camera</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not cameras %}
+  <div class="card empty">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h5L12 4h4l1.5 2h1A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+    <strong>No cameras configured</strong>
+    <p>A camera is an RTSP or HTTP stream pointed at one house. Add one to begin live tracking and counting.</p>
+    {% if request.user.is_manager %}
+      <a class="btn btn-primary btn-sm" href="{% url 'monitoring:camera_create' %}">Add your first camera</a>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="camera-grid">
+    {% for camera in cameras %}
+      {% with run=active_runs|get_item:camera.pk %}
+      <article class="card camera-card">
+        <a class="camera-thumb" href="{% url 'monitoring:camera_detail' camera.pk %}">
+          {% if camera.is_live %}
+            <img src="{% url 'monitoring:live_frame' camera.pk %}" alt="Live frame of {{ camera.name }}" loading="lazy">
+          {% elif camera.last_thumb %}
+            <img src="{% url 'monitoring:run_thumbnail' camera.last_run_id %}" alt="Latest annotated frame of {{ camera.name }}" loading="lazy">
+          {% else %}
+            <span class="thumb-placeholder">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h5L12 4h4l1.5 2h1A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+            </span>
+          {% endif %}
+          <span class="badge {{ camera.status|status_class }}">{{ camera.get_status_display }}</span>
+          {% if camera.is_live %}<span class="live-chip">LIVE</span>{% endif %}
+        </a>
+        <div class="camera-card-body">
+          <div class="camera-card-title">
+            <strong>{{ camera.name }}</strong>
+            <span>{{ camera.location|default:"Unassigned" }}</span>
+          </div>
+          <dl class="camera-metrics">
+            <div><dt>Birds now</dt><dd>{{ run.live_occupancy|default:0 }}</dd></div>
+            <div><dt>Last counted</dt><dd>{{ camera.last_unique|default:0 }}</dd></div>
+          </dl>
+          <div class="btn-group">
+            <a class="btn btn-sm btn-ghost" href="{% url 'monitoring:camera_detail' camera.pk %}">Open</a>
+            {% if request.user.is_manager %}
+              <a class="btn btn-sm btn-quiet" href="{% url 'monitoring:camera_edit' camera.pk %}">Settings</a>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+      {% endwith %}
+    {% endfor %}
+  </div>
+
+  <p class="note is-neutral mt-16">
+    Live sessions run on the detection worker. Start a camera from its page; frames are analysed on-device and
+    never leave your network except for the annotated preview.
+  </p>
+{% endif %}
+{% endblock %}

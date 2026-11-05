@@ -1,0 +1,23 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found · Chicken Vision</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'monitoring/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/app.css' %}">
+</head>
+<body>
+<main class="error-page">
+  <div class="error-card">
+    <span class="error-code">404</span>
+    <h1>Page not found</h1>
+    <p>The page you asked for does not exist, or the camera or run it referred to has been removed.</p>
+    <div class="btn-group">
+      <a class="btn btn-primary" href="{% url 'monitoring:dashboard' %}">Back to dashboard</a>
+      <a class="btn btn-ghost" href="{% url 'monitoring:cameras' %}">Cameras</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

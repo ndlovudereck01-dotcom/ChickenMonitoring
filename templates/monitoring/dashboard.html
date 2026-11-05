@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Farm overview{% endblock %}
+{% block page_subtitle %}Live headcount, camera health and today's activity{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:reports' %}">Reports</a>
+  {% if request.user.is_manager %}
+    <a class="btn btn-primary btn-sm" href="{% url 'monitoring:video_upload' %}">Analyse footage</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-4">
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Birds in view</span>
+    <span class="stat-value" data-live="farm-occupancy">{{ live_birds }}</span>
+    <span class="stat-foot">{{ active_runs }} live session{{ active_runs|pluralize }} running</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent is-amber"></span>
+    <span class="stat-label">Counted today</span>
+    <span class="stat-value">{{ today_birds }}</span>
+    <span class="stat-foot">{{ today_runs }} run{{ today_runs|pluralize }} · peak {{ today_peak }} in frame</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Cameras online</span>
+    <span class="stat-value">{{ online_cameras }}<small> / {{ camera_total }}</small></span>
+    <span class="stat-foot"><a href="{% url 'monitoring:cameras' %}">Manage cameras</a></span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent {% if open_alerts %}is-red{% else %}is-muted{% endif %}"></span>
+    <span class="stat-label">Open alerts</span>
+    <span class="stat-value">{{ open_alerts }}</span>
+    <span class="stat-foot">
+      {% if open_alerts %}<a href="{% url 'monitoring:alerts' %}">Needs attention</a>{% else %}All clear{% endif %}
+    </span>
+  </div>
+</div>
+
+<div class="grid grid-main mt-16">
+  <div class="card">
+    <div class="card-head">
+      <h2>Live population</h2>
+      {% if active_runs %}<span class="badge is-running">updating</span>{% endif %}
+      <span class="muted ml-auto text-sm">last 10 minutes</span>
+    </div>
+    <div class="card-body">
+      <div class="chart-box">
+        <canvas id="dashboard-trend" data-legend="dashboard-legend" aria-label="Live bird count chart"></canvas>
+      </div>
+      <div class="chart-legend" id="dashboard-legend"></div>
+      <p class="note is-neutral" data-trend-empty hidden>
+        No live samples yet. Start a camera session to populate this chart.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Alerts</h2>
+      <a class="link" href="{% url 'monitoring:alerts' %}">View all</a>
+    </div>
+    <div class="card-body flush">
+      {% for alert in recent_alerts %}
+        <div class="alert-row {{ alert.severity }}">
+          <span class="dot"></span>
+          <div class="alert-body">
+            <strong>{{ alert.message }}</strong>
+            <span class="row-sub">
+              {{ alert.get_kind_display }}{% if alert.camera %} · {{ alert.camera.name }}{% endif %}
+            </span>
+          </div>
+          <time datetime="{{ alert.created_at|date:'c' }}">{{ alert.created_at|timesince }} ago</time>
+        </div>
+      {% empty %}
+        <div class="empty">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/></svg>
+          <strong>No open alerts</strong>
+          <p>Overcrowding, stream failures and failed runs will appear here.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>Cameras</h2>
+  <a class="link" href="{% url 'monitoring:cameras' %}">All cameras →</a>
+</div>
+
+<div class="camera-grid">
+  {% for camera in cameras %}
+    {% with run=runs_by_camera|get_item:camera.pk %}
+    <article class="card camera-card">
+      <a class="camera-thumb" href="{% url 'monitoring:camera_detail' camera.pk %}" aria-label="Open {{ camera.name }}">
+        {% if camera.is_live %}
+          <img src="{% url 'monitoring:live_frame' camera.pk %}" alt="Live frame of {{ camera.name }}" loading="lazy">
+        {% elif camera.last_thumb %}
+          <img src="{% url 'monitoring:run_thumbnail' camera.last_run_id %}" alt="Last annotated frame of {{ camera.name }}" loading="lazy">
+        {% else %}
+          <span class="thumb-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h5L12 4h4l1.5 2h1A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+          </span>
+        {% endif %}
+        <span class="badge {{ camera.status|status_class }}">{{ camera.get_status_display }}</span>
+        {% if camera.is_live %}<span class="live-chip">LIVE</span>{% endif %}
+      </a>
+      <div class="camera-card-body">
+        <div class="camera-card-title">
+          <strong>{{ camera.name }}</strong>
+          <span>{{ camera.location|default:"Unassigned" }}</span>
+        </div>
+        <dl class="camera-metrics">
+          <div>
+            <dt>Birds now</dt>
+            <dd data-live="camera-{{ camera.pk }}">{{ run.live_occupancy|default:0 }}</dd>
+          </div>
+          <div>
+            <dt>Last run counted</dt>
+            <dd>{{ camera.last_unique|default:0 }}</dd>
+          </div>
+        </dl>
+        <div class="btn-group">
+          <a class="btn btn-sm btn-ghost" href="{% url 'monitoring:camera_detail' camera.pk %}">Open</a>
+          {% if camera.is_live %}
+            <a class="btn btn-sm btn-primary" href="{% url 'monitoring:camera_detail' camera.pk %}#live">Live view</a>
+          {% elif request.user.is_manager and camera.stream_url %}
+            <form method="post" action="{% url 'monitoring:camera_start' camera.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-ghost" type="submit">Start</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% endwith %}
+  {% empty %}
+    <div class="card empty">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h5L12 4h4l1.5 2h1A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+      <strong>No cameras yet</strong>
+      <p>Add an RTSP or HTTP stream for each poultry house, or analyse an uploaded video right away.</p>
+      {% if request.user.is_manager %}
+        <div class="btn-group">
+          <a class="btn btn-primary btn-sm" href="{% url 'monitoring:camera_create' %}">Add camera</a>
+          <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:video_upload' %}">Analyse footage</a>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section-head">
+  <h2>Recent runs</h2>
+  <a class="link" href="{% url 'monitoring:runs' %}">All runs →</a>
+</div>
+
+<div class="card">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Source</th>
+          <th class="num">Unique birds</th>
+          <th class="num">Peak</th>
+          <th>Status</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in recent_runs %}
+          <tr>
+            <td><a class="row-title" href="{% url 'monitoring:run_detail' run.pk %}">{{ run.title|default:run }}</a></td>
+            <td class="muted">{% if run.camera %}{{ run.camera.name }}{% elif run.video %}{{ run.video.original_name }}{% else %}—{% endif %}</td>
+            <td class="num">{{ run.unique_birds }}</td>
+            <td class="num">{{ run.peak_occupancy }}</td>
+            <td>
+              <span class="badge {{ run.status|status_class }}">{{ run.get_status_display }}</span>
+              {% if run.status == 'running' %}
+                <div class="progress is-thin" aria-hidden="true"><span data-progress="{{ run.progress }}"></span></div>
+              {% endif %}
+            </td>
+            <td class="muted nowrap">{{ run.created_at|date:"d M H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6"><div class="empty"><strong>No runs yet</strong><p>Upload a video or start a camera to create the first run.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{ trend_series|json_script:"dashboard-trend-data" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'monitoring/js/charts.js' %}" defer></script>
+<script src="{% static 'monitoring/js/dashboard.js' %}" defer></script>
+{% endblock %}

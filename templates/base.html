@@ -1,0 +1,109 @@
+{% load static ui %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Dashboard{% endblock %} · Chicken Vision</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'monitoring/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/app.css' %}">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="{% url 'monitoring:dashboard' %}">
+      <span class="brand-mark">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M17 8.5c0-3-2.5-5-5.5-5S6 5.5 6 10c0 1.6.5 3 1.4 4.1-.9 1-1.4 2.3-1.4 3.6h4.2c3 0 5.6-1.6 6.6-4.1 1.5 0 2.7-1 2.7-2.5S18.3 8.5 17 8.5Z" fill="currentColor"/>
+          <circle cx="15.4" cy="7.6" r="0.9" fill="#0f6a47"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <strong>Chicken Vision</strong>
+        <span>Poultry intelligence</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      <span class="nav-label">Monitoring</span>
+      <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}" href="{% url 'monitoring:dashboard' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-link {% if 'camera' in request.resolver_match.url_name or request.resolver_match.url_name == 'zone_delete' %}is-active{% endif %}" href="{% url 'monitoring:cameras' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h5L12 4h4l1.5 2h1A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-8Z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+        Cameras
+        {% if nav_camera_total %}<span class="nav-badge">{{ nav_camera_online }}/{{ nav_camera_total }}</span>{% endif %}
+      </a>
+      <a class="nav-link {% if request.resolver_match.url_name == 'video_upload' %}is-active{% endif %}" href="{% url 'monitoring:video_upload' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+        Analyse footage
+      </a>
+      <a class="nav-link {% if request.resolver_match.url_name == 'runs' or request.resolver_match.url_name == 'run_detail' %}is-active{% endif %}" href="{% url 'monitoring:runs' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18.5" cy="18" r="1.6"/></svg>
+        Runs
+        {% if nav_active_runs %}<span class="nav-badge">{{ nav_active_runs }}</span>{% endif %}
+      </a>
+
+      <span class="nav-label">Operations</span>
+      <a class="nav-link {% if request.resolver_match.url_name == 'alerts' %}is-active{% endif %}" href="{% url 'monitoring:alerts' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 4a5 5 0 0 0-5 5v3.5L5.5 16h13L17 12.5V9a5 5 0 0 0-5-5Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+        Alerts
+        {% if nav_open_alerts %}<span class="nav-badge is-hot">{{ nav_open_alerts }}</span>{% endif %}
+      </a>
+      <a class="nav-link {% if request.resolver_match.url_name == 'reports' %}is-active{% endif %}" href="{% url 'monitoring:reports' %}">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 20V4m0 16h16"/><path d="M8 16v-4m4 4V8m4 8v-6"/></svg>
+        Reports
+      </a>
+      {% if request.user.is_admin_role %}
+        <a class="nav-link {% if request.resolver_match.url_name == 'audit' %}is-active{% endif %}" href="{% url 'monitoring:audit' %}">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/></svg>
+          Audit log
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-chip">
+        <span class="avatar">{{ request.user.username|initials }}</span>
+        <span class="user-meta">
+          <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+          <span>{{ request.user.get_role_display }}</span>
+        </span>
+      </div>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button class="link-button" type="submit">Sign out</button>
+      </form>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="nav-toggle" type="button" data-nav-toggle aria-label="Toggle navigation">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <div class="topbar-titles">
+        <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+        <p class="subtitle">{% block page_subtitle %}Farm overview{% endblock %}</p>
+      </div>
+      <div class="topbar-actions">{% block header_actions %}{% endblock %}</div>
+    </header>
+
+    <main class="content">
+      {% if messages %}
+        <div class="messages" role="status">
+          {% for message in messages %}
+            <div class="message {{ message.tags }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="{% static 'monitoring/js/app.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

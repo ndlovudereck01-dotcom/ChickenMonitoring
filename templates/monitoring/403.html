@@ -1,0 +1,26 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Access denied · Chicken Vision</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'monitoring/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/app.css' %}">
+</head>
+<body>
+<main class="error-page">
+  <div class="error-card">
+    <span class="error-code">403</span>
+    <h1>Access denied</h1>
+    <p>
+      {% if reason %}{{ reason }}{% else %}Your account does not have permission to perform this action.{% endif %}
+      If you need access, ask a farm administrator to change your role.
+    </p>
+    <div class="btn-group">
+      <a class="btn btn-primary" href="{% url 'monitoring:dashboard' %}">Back to dashboard</a>
+      {% if not user.is_authenticated %}<a class="btn btn-ghost" href="{% url 'login' %}">Sign in</a>{% endif %}
+    </div>
+  </div>
+</main>
+</body>
+</html>

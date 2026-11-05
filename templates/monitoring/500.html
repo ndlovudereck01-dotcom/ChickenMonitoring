@@ -1,0 +1,25 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Something went wrong · Chicken Vision</title>
+  <link rel="icon" type="image/svg+xml" href="{% static 'monitoring/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/app.css' %}">
+</head>
+<body>
+<main class="error-page">
+  <div class="error-card">
+    <span class="error-code">500</span>
+    <h1>Something went wrong</h1>
+    <p>
+      The server hit an unexpected error. The details are in the application log; your recordings and
+      completed runs are unaffected.
+    </p>
+    <div class="btn-group">
+      <a class="btn btn-primary" href="{% url 'monitoring:dashboard' %}">Try again</a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

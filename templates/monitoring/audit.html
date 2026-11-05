@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Audit log{% endblock %}
+{% block page_title %}Audit log{% endblock %}
+{% block page_subtitle %}Append-only record of security-relevant actions{% endblock %}
+
+{% block content %}
+<form method="get" class="filters">
+  <div class="field grow">
+    <label for="filter-action">Action</label>
+    <select class="input" id="filter-action" name="action">
+      <option value="">All actions</option>
+      {% for value in actions %}
+        <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-ghost btn-sm" type="submit">Filter</button>
+    {% if action %}<a class="btn btn-quiet btn-sm" href="{% url 'monitoring:audit' %}">Reset</a>{% endif %}
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>When</th><th>User</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr>
+      </thead>
+      <tbody>
+        {% for entry in page %}
+          <tr>
+            <td class="muted nowrap">{{ entry.created_at|date:"d M Y H:i:s" }}</td>
+            <td>{{ entry.user.username|default:"system" }}</td>
+            <td><span class="tag">{{ entry.action }}</span></td>
+            <td class="muted">{% if entry.target_type %}{{ entry.target_type }}#{{ entry.target_id }}{% else %}—{% endif %}</td>
+            <td class="muted">{{ entry.detail|default:"—" }}</td>
+            <td class="muted mono">{{ entry.ip_address|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6"><div class="empty"><strong>No entries</strong><p>Security-relevant actions will be recorded here.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination">
+    {% if page.has_previous %}<a class="btn btn-sm btn-ghost" href="{% querystring page=page.previous_page_number %}">← Previous</a>{% endif %}
+    <span class="muted text-sm">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-sm btn-ghost" href="{% querystring page=page.next_page_number %}">Next →</a>{% endif %}
+  </nav>
+{% endif %}
+{% endblock %}

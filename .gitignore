@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+db.sqlite3
+db.sqlite3-*
+/staticfiles/
+media/
+.env
+
+# ML artefacts
+models/*.pt
+models/*.onnx
+runs/
+datasets/*.zip
+
+# Tooling
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+.DS_Store

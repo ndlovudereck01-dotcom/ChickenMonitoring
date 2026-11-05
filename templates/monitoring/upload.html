@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Analyse footage{% endblock %}
+{% block page_title %}Analyse footage{% endblock %}
+{% block page_subtitle %}Count and track birds in a recorded video{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:runs' %}">All runs</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-main">
+  <div class="card">
+    <div class="card-head">
+      <h2>Upload a video</h2>
+      <span class="badge no-dot">queued for detection</span>
+    </div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data" novalidate class="form-grid">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+        {% include "monitoring/partials/field.html" with field=form.video %}
+        {% include "monitoring/partials/field.html" with field=form.title %}
+        {% include "monitoring/partials/field.html" with field=form.camera_profile %}
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">Upload and analyse</button>
+          <a class="btn btn-quiet" href="{% url 'monitoring:dashboard' %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <aside class="grid">
+    <div class="card">
+      <div class="card-head"><h2>What happens next</h2></div>
+      <div class="card-body">
+        <ol class="steps">
+          <li><strong>Validated</strong><span>The file is hashed and checked with OpenCV — a renamed image will be rejected.</span></li>
+          <li><strong>Queued</strong><span>The detection worker claims the job when a slot frees up; two jobs run at once by default.</span></li>
+          <li><strong>Detected &amp; tracked</strong><span>YOLOv11 finds birds, DeepSORT keeps one identity per bird across frames.</span></li>
+          <li><strong>Counted</strong><span>Unique birds, peak occupancy, line crossings and zone activity are recorded.</span></li>
+        </ol>
+        <p class="text-sm muted mt-8">The run page refreshes itself while processing and keeps the annotated video when it's done.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Limits</h2></div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Formats</dt><dd>MP4, MOV, AVI, MKV, WebM</dd>
+          <dt>Max size</dt><dd>Configured per deployment</dd>
+          <dt>Max length</dt><dd>Configured per deployment</dd>
+          <dt>Audio</dt><dd>Ignored</dd>
+        </dl>
+        <p class="text-sm muted mt-8">
+          For long recordings, cut to the period you care about. Detection runs on CPU and processes
+          roughly 2–6 frames per second depending on resolution.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Better results</h2></div>
+      <div class="card-body">
+        <ul class="bullets text-sm">
+          <li>Keep the camera still; panning confuses identity tracking.</li>
+          <li>Shoot from above at a moderate angle so birds don't overlap.</li>
+          <li>Avoid strong backlight and deep shadows.</li>
+          <li>Use a camera profile to reuse a tuned ROI and counting line.</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

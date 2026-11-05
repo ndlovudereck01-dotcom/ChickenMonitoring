@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}{{ camera.name }}{% endblock %}
+{% block page_title %}{{ camera.name }}{% endblock %}
+{% block page_subtitle %}{{ camera.location|default:"Unassigned location" }} · {{ camera.masked_stream_url|default:"No stream configured" }}{% endblock %}
+
+{% block header_actions %}
+  <span class="badge {{ camera.status|status_class }}">{{ camera.get_status_display }}</span>
+  {% if can_manage %}
+    <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:camera_edit' camera.pk %}">Settings</a>
+    {% if active_run %}
+      <form method="post" action="{% url 'monitoring:camera_stop' camera.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-danger btn-sm" type="submit">Stop session</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'monitoring:camera_start' camera.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-primary btn-sm" type="submit" {% if not camera.stream_url %}disabled{% endif %}>Start live</button>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not camera.stream_url %}
+  <p class="note">This camera has no stream URL yet. Add an RTSP or HTTP stream in its settings to start monitoring.
+    {% if can_manage %}<a href="{% url 'monitoring:camera_edit' camera.pk %}">Open settings</a>{% endif %}
+  </p>
+{% endif %}
+{% if camera.last_error and camera.status == 'error' %}
+  <p class="note">Last error: {{ camera.last_error }}</p>
+{% endif %}
+
+<div class="grid grid-main">
+  <div class="card" id="live">
+    <div class="card-head">
+      <h2>Live feed</h2>
+      <span class="badge {{ camera.status|status_class }}" data-camera-status>{{ camera.get_status_display }}</span>
+      {% if can_manage %}
+        <button type="button" class="btn btn-sm btn-ghost ml-auto" data-geometry-edit>Edit geometry</button>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <div class="live-stage"
+           id="live-stage"
+           data-live-stage
+           data-running="{% if active_run %}1{% else %}0{% endif %}"
+           data-editor="{% if can_manage %}1{% else %}0{% endif %}"
+           data-stream-url="{% url 'monitoring:live_stream' camera.pk %}"
+           data-frame-url="{% url 'monitoring:live_frame' camera.pk %}"
+           data-stats-url="{% url 'monitoring:api_camera_live' camera.pk %}"
+           data-geometry-url="{% url 'monitoring:camera_geometry' camera.pk %}">
+        <img class="live-feed" id="live-feed" alt="Annotated live feed of {{ camera.name }}"
+             {% if active_run %}src="{% url 'monitoring:live_stream' camera.pk %}"{% endif %}>
+        <canvas class="geometry" id="geometry-canvas" hidden></canvas>
+        <div class="stage-overlay" id="stage-overlay">
+          {% if active_run %}
+            <div>
+              <strong>Connecting to the stream…</strong>
+              <p class="muted">The worker starts publishing annotated frames within a few seconds.</p>
+            </div>
+          {% else %}
+            <div>
+              <strong>Camera is offline</strong>
+              <p class="muted">
+                {% if can_manage %}Start the session to see tracking boxes, unique IDs and counts.
+                {% else %}Ask an operator to start monitoring this camera.{% endif %}
+              </p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if can_manage %}
+        <div class="live-toolbar">
+          <div class="seg" role="group" aria-label="Geometry mode">
+            <button type="button" data-geometry-mode="roi" class="is-active">Area</button>
+            <button type="button" data-geometry-mode="line">Counting line</button>
+          </div>
+          <label class="check"><input type="checkbox" data-invert-line {% if camera.invert_line %}checked{% endif %}> <span>Invert IN/OUT</span></label>
+          <label class="check"><input type="checkbox" data-roi-only {% if camera.roi_only %}checked{% endif %}> <span>Ignore outside area</span></label>
+          <button type="button" class="btn btn-sm btn-ghost" data-geometry-clear>Clear</button>
+          <span class="sep"></span>
+          <span class="muted text-sm" data-geometry-status></span>
+          <button type="button" class="btn btn-sm btn-primary" data-geometry-save>Save geometry</button>
+        </div>
+        <p class="helptext mt-8">
+          Choose <strong>Area</strong> to outline the floor the birds occupy, or <strong>Counting line</strong> and click
+          two points to define an IN/OUT gate. Geometry is stored in normalised coordinates, so it survives resolution changes.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Session</h2>
+        {% if active_run %}
+          <a class="link" href="{% url 'monitoring:run_detail' active_run.pk %}">Open run</a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if active_run %}
+          <dl class="live-metrics">
+            <div class="live-metric"><dt>Birds now</dt><dd data-live="occupancy">{{ live_sample.occupancy|default:0 }}</dd></div>
+            <div class="live-metric"><dt>Unique birds</dt><dd data-live="unique">{{ active_run.unique_birds }}</dd></div>
+            <div class="live-metric"><dt>Crossed IN</dt><dd data-live="in">{{ active_run.line_in }}</dd></div>
+            <div class="live-metric"><dt>Crossed OUT</dt><dd data-live="out">{{ active_run.line_out }}</dd></div>
+          </dl>
+          <dl class="kv mt-16">
+            <dt>Processing rate</dt><dd><span data-live="fps">{{ active_run.processing_fps|floatformat:1 }}</span> fps</dd>
+            <dt>Frames analysed</dt><dd data-live="frames">{{ active_run.frames_processed }}</dd>
+            <dt>Last annotated frame</dt><dd data-live="frame-age">—</dd>
+            <dt>Started</dt><dd>{{ active_run.started_at|date:"d M H:i" }}</dd>
+            <dt>Detector</dt><dd>{{ active_run.detector_model|default:"—" }}</dd>
+          </dl>
+        {% else %}
+          <div class="empty">
+            <strong>No active session</strong>
+            <p>Start the camera to track and count birds in real time.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mt-16">
+      <div class="card-head">
+        <h2>Configuration</h2>
+        {% if can_manage %}<a class="link" href="{% url 'monitoring:camera_edit' camera.pk %}">Edit</a>{% endif %}
+      </div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>Confidence</dt><dd>{{ camera.confidence|floatformat:2 }}</dd>
+          <dt>NMS IoU</dt><dd>{{ camera.iou|floatformat:2 }}</dd>
+          <dt>Inference size</dt><dd>{{ camera.imgsz }} px</dd>
+          <dt>Frame skip</dt><dd>every {{ camera.frame_skip }}{% if camera.frame_skip == 1 %}st{% elif camera.frame_skip == 2 %}nd{% elif camera.frame_skip == 3 %}rd{% else %}th{% endif %} frame</dd>
+          <dt>Count after</dt><dd>{{ camera.min_track_hits }} hits</dd>
+          <dt>Alert above</dt><dd>{{ camera.occupancy_alert_threshold|default:"Not set" }}</dd>
+          <dt>Periodic alert</dt><dd>{% if camera.occupancy_alert_threshold %}On{% else %}Off{% endif %}</dd>
+        </dl>
+        <div class="tag-list mt-16">
+          <span class="tag">{% if camera.roi %}ROI defined{% else %}Full frame{% endif %}</span>
+          <span class="tag">{% if camera.counting_line %}Counting line{% else %}No line{% endif %}</span>
+          {% if camera.invert_line %}<span class="tag">IN/OUT inverted</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>Zones</h2>
+  <span class="muted text-sm ml-auto">Occupancy per feeder, drinker or door</span>
+</div>
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-body flush">
+      <table class="data">
+        <thead><tr><th>Zone</th><th>Type</th><th>Polygon</th><th></th></tr></thead>
+        <tbody>
+          {% for zone in zones %}
+            <tr>
+              <td class="row-title">{{ zone.name }}</td>
+              <td><span class="badge no-dot">{{ zone.get_kind_display }}</span></td>
+              <td class="muted">{{ zone.polygon|length }} points</td>
+              <td class="num">
+                {% if can_manage %}
+                  <form method="post" action="{% url 'monitoring:zone_delete' zone.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-quiet" type="submit">Remove</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4"><div class="empty"><strong>No zones</strong><p>Zones give you per-area occupancy in every run.</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if can_manage %}
+    <div class="card">
+      <div class="card-head"><h2>Add a zone</h2></div>
+      <div class="card-body">
+        <form method="post" action="{% url 'monitoring:zone_create' camera.pk %}" class="form-grid">
+          {% csrf_token %}
+          {% include "monitoring/partials/field.html" with field=zone_form.name %}
+          {% include "monitoring/partials/field.html" with field=zone_form.kind %}
+          {% include "monitoring/partials/field.html" with field=zone_form.polygon %}
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" type="submit">Add zone</button>
+            <span class="helptext">Use the same normalised format as the ROI.</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<div class="section-head">
+  <h2>Recent runs</h2>
+  <a class="link" href="{% url 'monitoring:runs' %}?q={{ camera.name|urlencode }}">All runs →</a>
+</div>
+<div class="card">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Run</th><th>Status</th><th class="num">Unique</th><th class="num">Peak</th><th class="num">IN / OUT</th><th>Started</th></tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+          <tr>
+            <td><a class="row-title" href="{% url 'monitoring:run_detail' run.pk %}">{{ run.title|default:run }}</a></td>
+            <td><span class="badge {{ run.status|status_class }}">{{ run.get_status_display }}</span></td>
+            <td class="num">{{ run.unique_birds }}</td>
+            <td class="num">{{ run.peak_occupancy }}</td>
+            <td class="num">{{ run.line_in }} / {{ run.line_out }}</td>
+            <td class="muted nowrap">{{ run.created_at|date:"d M H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6"><div class="empty"><strong>No runs yet</strong><p>Start the camera to create the first session.</p></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{ geometry|json_script:"geometry-data" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'monitoring/js/live.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}{{ run.title|default:run }}{% endblock %}
+{% block page_title %}{{ run.title|default:run }}{% endblock %}
+{% block page_subtitle %}
+  {{ run.get_source_type_display }}{% if run.camera %} · {{ run.camera.name }}{% elif run.video %} · {{ run.video.original_name }}{% endif %}
+  · created {{ run.created_at|date:"d M Y H:i" }}
+{% endblock %}
+
+{% block header_actions %}
+  <span class="badge {{ run.status|status_class }}">{{ run.get_status_display }}</span>
+  {% if run.tracks.exists %}
+    <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:run_export' run.pk %}?dataset=tracks">Tracks CSV</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:run_export' run.pk %}?dataset=samples">Samples CSV</a>
+  {% endif %}
+  {% if can_manage and not run.is_finished %}
+    <form method="post" action="{% url 'monitoring:run_cancel' run.pk %}">
+      {% csrf_token %}
+      <button class="btn btn-danger btn-sm" type="submit">Cancel run</button>
+    </form>
+  {% endif %}
+  {% if can_manage and run.status == 'failed' or can_manage and run.status == 'cancelled' %}
+    <form method="post" action="{% url 'monitoring:run_retry' run.pk %}">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm" type="submit">Retry</button>
+    </form>
+  {% endif %}
+  {% if can_delete %}
+    <form method="post" action="{% url 'monitoring:run_delete' run.pk %}" data-confirm="Delete this run, its tracks and its output video?">
+      {% csrf_token %}
+      <button class="btn btn-quiet btn-sm" type="submit">Delete</button>
+    </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if run.status == 'failed' and run.error_message %}
+  <div class="message error">
+    <strong>Processing failed.</strong> {{ run.error_message }}
+  </div>
+{% endif %}
+
+<div class="card" {% if not run.is_finished %}data-run-progress data-progress-url="{% url 'monitoring:api_run_progress' run.pk %}"{% endif %}>
+  <div class="card-body">
+    <div class="progress-head">
+      <span class="badge {{ run.status|status_class }}">{{ run.get_status_display }}</span>
+      <span class="muted text-sm ml-auto"><span data-progress-label>{{ run.progress }}%</span></span>
+    </div>
+    <div class="progress"><span data-progress="{{ run.progress }}" data-progress-bar></span></div>
+    <dl class="kv kv-inline mt-16">
+      <dt>Elapsed</dt><dd data-live="elapsed">{{ run.elapsed_display }}</dd>
+      <dt>Frames</dt><dd><span data-live="frames">{{ run.frames_processed }}</span>{% if run.frames_total %} of {{ run.frames_total }}{% endif %}</dd>
+      <dt>Rate</dt><dd><span data-live="fps">{{ run.processing_fps|floatformat:1 }}</span> fps</dd>
+      <dt>Worker</dt><dd>{{ run.device|default:"cpu" }}</dd>
+      <dt>Model</dt><dd>{{ run.detector_model|default:"—" }}</dd>
+      <dt>Started</dt><dd>{{ run.started_at|date:"d M H:i"|default:"—" }}</dd>
+      <dt>Finished</dt><dd>{{ run.finished_at|date:"d M H:i"|default:"—" }}</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="grid grid-4 mt-16">
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Unique birds</span>
+    <span class="stat-value" data-live="unique">{{ run.unique_birds }}</span>
+    <span class="stat-foot">Deduplicated identities</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent is-amber"></span>
+    <span class="stat-label">Peak occupancy</span>
+    <span class="stat-value" data-live="peak">{{ run.peak_occupancy }}</span>
+    <span class="stat-foot">avg {{ run.average_occupancy|floatformat:1 }} in frame</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Crossed counting line</span>
+    <span class="stat-value">{{ run.line_in }} <small>in</small></span>
+    <span class="stat-foot">{{ run.line_out }} outward crossings</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent {% if run.is_finished %}is-muted{% endif %}"></span>
+    <span class="stat-label">Samples recorded</span>
+    <span class="stat-value">{{ run.sample_count }}</span>
+    <span class="stat-foot">time series points</span>
+  </div>
+</div>
+
+{% if output_exists %}
+  <div class="section-head">
+    <h2>Annotated video</h2>
+    <a class="link" href="{% url 'monitoring:run_video' run.pk %}">Open full size</a>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <video class="run-video" controls preload="metadata"
+             {% if run.thumbnail %}poster="{% url 'monitoring:run_thumbnail' run.pk %}"{% endif %}
+             src="{% url 'monitoring:run_video' run.pk %}">
+        Your browser cannot play this video.
+        <a href="{% url 'monitoring:run_video' run.pk %}">Download it instead</a>.
+      </video>
+      <p class="helptext mt-8">Boxes show detections; the label carries the track ID and current bird count.</p>
+    </div>
+  </div>
+{% elif run.status == 'queued' %}
+  <div class="note mt-16">Waiting for a worker slot. This page updates automatically once processing starts.</div>
+{% elif run.status == 'running' %}
+  <div class="note mt-16">The annotated video is written when processing finishes.</div>
+{% endif %}
+
+<div class="section-head">
+  <h2>Population over time</h2>
+  <span class="muted text-sm ml-auto">{{ samples|length }} sample{{ samples|length|pluralize }}</span>
+</div>
+<div class="card">
+  <div class="card-body">
+    <div class="chart-box">
+      <canvas id="run-chart" data-legend="run-legend" aria-label="Bird population over time"></canvas>
+    </div>
+    <div class="chart-legend" id="run-legend"></div>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-16">
+  <div class="card">
+    <div class="card-head"><h2>Zones</h2><span class="muted text-sm ml-auto">peak / average</span></div>
+    <div class="card-body flush table-wrap">
+      <table class="data">
+        <thead><tr><th>Zone</th><th>Type</th><th class="num">Peak</th><th class="num">Average</th></tr></thead>
+        <tbody>
+          {% for stat in zone_stats %}
+            <tr>
+              <td class="row-title">{{ stat.zone_name }}</td>
+              <td class="muted">{{ stat.zone_kind|default:"—" }}</td>
+              <td class="num">{{ stat.peak_occupancy }}</td>
+              <td class="num">{{ stat.average_occupancy|floatformat:1 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4"><div class="empty"><strong>No zone data</strong><p>Add zones to this camera to see per-area occupancy.</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Alerts from this run</h2></div>
+    <div class="card-body flush">
+      {% for alert in alerts %}
+        <div class="alert-row {{ alert.severity }}">
+          <span class="dot"></span>
+          <div class="alert-body">
+            <strong>{{ alert.message }}</strong>
+            <span class="row-sub">{{ alert.get_kind_display }} · {{ alert.created_at|date:"H:i" }}</span>
+          </div>
+        </div>
+      {% empty %}
+        <div class="empty">
+          <strong>No alerts</strong>
+          <p>This run stayed within its configured thresholds.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>Tracked birds</h2>
+  <span class="muted text-sm ml-auto">{{ tracks_page.paginator.count }} identit{{ tracks_page.paginator.count|pluralize:"y,ies" }}</span>
+</div>
+<div class="card">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="num">Track</th>
+          <th class="num">First seen</th>
+          <th class="num">Last seen</th>
+          <th class="num">Visible</th>
+          <th class="num">Frames</th>
+          <th class="num">Confidence</th>
+          <th>Counted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for track in tracks_page %}
+          <tr>
+            <td class="num mono">#{{ track.track_id }}</td>
+            <td class="num">{{ track.first_seen_seconds|floatformat:2 }}s</td>
+            <td class="num">{{ track.last_seen_seconds|floatformat:2 }}s</td>
+            <td class="num">{{ track.visible_seconds|floatformat:1 }}s</td>
+            <td class="num">{{ track.frames_seen }}</td>
+            <td class="num">{{ track.confidence|floatformat:2 }}</td>
+            <td>
+              {% if track.is_counted %}<span class="badge is-completed">Counted</span>
+              {% else %}<span class="badge is-idle">Filtered</span>{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7">
+              <div class="empty">
+                <strong>No tracks yet</strong>
+                <p>{% if run.is_finished %}No birds were tracked in this run.{% else %}Tracks appear as processing progresses.{% endif %}</p>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if tracks_page.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Track pages">
+    {% if tracks_page.has_previous %}
+      <a class="btn btn-sm btn-ghost" href="{% querystring page=tracks_page.previous_page_number %}">← Previous</a>
+    {% endif %}
+    <span class="muted text-sm">Page {{ tracks_page.number }} of {{ tracks_page.paginator.num_pages }}</span>
+    {% if tracks_page.has_next %}
+      <a class="btn btn-sm btn-ghost" href="{% querystring page=tracks_page.next_page_number %}">Next →</a>
+    {% endif %}
+  </nav>
+{% endif %}
+
+<details class="disclosure mt-16">
+  <summary>Run configuration</summary>
+  <pre class="mono">{{ run_config }}</pre>
+  <p class="helptext">Effective pipeline settings captured when this run started.</p>
+</details>
+
+{{ chart_points|json_script:"run-chart-data" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'monitoring/js/charts.js' %}" defer></script>
+<script src="{% static 'monitoring/js/run.js' %}" defer></script>
+{% endblock %}

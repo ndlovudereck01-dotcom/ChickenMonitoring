@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}Runs{% endblock %}
+{% block page_title %}Runs{% endblock %}
+{% block page_subtitle %}Every detection job, live or recorded{% endblock %}
+
+{% block header_actions %}
+  {% if request.user.is_manager %}
+    <a class="btn btn-primary btn-sm" href="{% url 'monitoring:video_upload' %}">Analyse footage</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<form method="get" class="filters">
+  <div class="field">
+    <label for="filter-status">Status</label>
+    <select class="input" id="filter-status" name="status">
+      <option value="">Any status</option>
+      {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="filter-source">Source</label>
+    <select class="input" id="filter-source" name="source">
+      <option value="">Any source</option>
+      {% for value, label in source_choices %}
+        <option value="{{ value }}" {% if filters.source == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field grow">
+    <label for="filter-q">Search</label>
+    <input class="input" id="filter-q" type="search" name="q" value="{{ filters.q }}" placeholder="Run title">
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-ghost btn-sm" type="submit">Filter</button>
+    {% if filters.status or filters.source or filters.q %}
+      <a class="btn btn-quiet btn-sm" href="{% url 'monitoring:runs' %}">Reset</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-body flush table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Source</th>
+          <th>Status</th>
+          <th class="num">Unique</th>
+          <th class="num">Peak</th>
+          <th class="num">IN / OUT</th>
+          <th class="num">Frames</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in page %}
+          <tr>
+            <td>
+              <a class="row-title" href="{% url 'monitoring:run_detail' run.pk %}">{{ run.title|default:run }}</a>
+              <span class="row-sub">{{ run.get_source_type_display }}</span>
+            </td>
+            <td class="muted">{% if run.camera %}{{ run.camera.name }}{% elif run.video %}{{ run.video.original_name }}{% else %}—{% endif %}</td>
+            <td>
+              <span class="badge {{ run.status|status_class }}">{{ run.get_status_display }}</span>
+              {% if run.status == 'running' %}
+                <div class="progress is-thin"><span data-progress="{{ run.progress }}"></span></div>
+                <span class="row-sub">{{ run.progress }}%</span>
+              {% endif %}
+            </td>
+            <td class="num">{{ run.unique_birds }}</td>
+            <td class="num">{{ run.peak_occupancy }}</td>
+            <td class="num">{{ run.line_in }} / {{ run.line_out }}</td>
+            <td class="num muted">{{ run.frames_processed }}{% if run.frames_total %} / {{ run.frames_total }}{% endif %}</td>
+            <td class="muted nowrap">{{ run.created_at|date:"d M H:i" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8">
+              <div class="empty">
+                <strong>No runs match these filters</strong>
+                <p>Upload a video or start a camera to create a run.</p>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Pagination">
+    {% if page.has_previous %}
+      <a class="btn btn-sm btn-ghost" href="{% querystring page=page.previous_page_number %}">← Previous</a>
+    {% endif %}
+    <span class="muted text-sm">Page {{ page.number }} of {{ page.paginator.num_pages }} · {{ page.paginator.count }} run{{ page.paginator.count|pluralize }}</span>
+    {% if page.has_next %}
+      <a class="btn btn-sm btn-ghost" href="{% querystring page=page.next_page_number %}">Next →</a>
+    {% endif %}
+  </nav>
+{% endif %}
+{% endblock %}

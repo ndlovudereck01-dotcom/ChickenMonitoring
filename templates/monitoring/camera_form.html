@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if is_new %}New camera{% else %}Edit {{ camera.name }}{% endif %}{% endblock %}
+{% block page_title %}{% if is_new %}Add a camera{% else %}Camera settings{% endif %}{% endblock %}
+{% block page_subtitle %}{% if is_new %}Point Chicken Vision at one poultry house{% else %}{{ camera.name }}{% endif %}{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-ghost btn-sm" href="{% if camera %}{% url 'monitoring:camera_detail' camera.pk %}{% else %}{% url 'monitoring:cameras' %}{% endif %}">Cancel</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="grid grid-main">
+    <div class="card">
+      <div class="card-body form-grid">
+        {% if form.non_field_errors %}
+          <div class="message error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <fieldset>
+          <legend>Camera</legend>
+          <div class="form-grid grid-2">
+            {% include "monitoring/partials/field.html" with field=form.name %}
+            {% include "monitoring/partials/field.html" with field=form.location %}
+          </div>
+          {% include "monitoring/partials/field.html" with field=form.stream_url %}
+          {% include "monitoring/partials/check.html" with field=form.is_active %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Detection</legend>
+          <div class="form-grid grid-2">
+            {% include "monitoring/partials/field.html" with field=form.confidence %}
+            {% include "monitoring/partials/field.html" with field=form.iou %}
+          </div>
+          <div class="form-grid grid-2">
+            {% include "monitoring/partials/field.html" with field=form.imgsz %}
+            {% include "monitoring/partials/field.html" with field=form.frame_skip %}
+          </div>
+          <div class="form-grid grid-2">
+            {% include "monitoring/partials/field.html" with field=form.min_track_hits %}
+            {% include "monitoring/partials/field.html" with field=form.occupancy_alert_threshold %}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Geometry</legend>
+          {% include "monitoring/partials/field.html" with field=form.roi %}
+          {% include "monitoring/partials/check.html" with field=form.roi_only %}
+          {% include "monitoring/partials/field.html" with field=form.counting_line %}
+          {% include "monitoring/partials/check.html" with field=form.invert_line %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Notes</legend>
+          {% include "monitoring/partials/field.html" with field=form.notes %}
+        </fieldset>
+
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">{% if is_new %}Create camera{% else %}Save changes{% endif %}</button>
+          <a class="btn btn-quiet" href="{% if camera %}{% url 'monitoring:camera_detail' camera.pk %}{% else %}{% url 'monitoring:cameras' %}{% endif %}">Cancel</a>
+        </div>
+      </div>
+    </div>
+
+    <aside class="grid">
+      <div class="card">
+        <div class="card-head"><h2>Getting a good stream</h2></div>
+        <div class="card-body">
+          <p class="text-sm muted">
+            Use an RTSP URL for IP cameras, e.g. <span class="mono">rtsp://user:pass@192.168.1.20:554/stream1</span>,
+            or an HTTP snapshot stream. Credentials are stored in the database, so use a dedicated, read-only camera account.
+          </p>
+          <p class="text-sm muted">
+            Aim for a fixed, slightly elevated view of the floor with even lighting. Avoid pointing at bright windows —
+            backlight makes birds hard to detect.
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Tuning accuracy</h2></div>
+        <div class="card-body">
+          <dl class="kv">
+            <dt>Confidence</dt><dd>0.35–0.5</dd>
+            <dt>NMS IoU</dt><dd>0.45–0.6</dd>
+            <dt>Inference size</dt><dd>640 (CPU), 960+ (GPU)</dd>
+            <dt>Frame skip</dt><dd>2–4 on CPU</dd>
+            <dt>Min hits</dt><dd>5–8</dd>
+          </dl>
+          <p class="helptext muted text-sm mt-8">
+            Counting needs a few consistent detections before a track is registered, which filters out flicker.
+            Raise <em>min hits</em> in dusty or low-light houses.
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Geometry format</h2></div>
+        <div class="card-body">
+          <p class="text-sm muted">Coordinates are normalised to 0–1, with (0,0) at the top-left.</p>
+          <pre class="mono">ROI:  [[0.10, 0.25], [0.90, 0.25], [0.90, 0.95], [0.10, 0.95]]
+Line: [[0.00, 0.55], [1.00, 0.55]]</pre>
+          <p class="text-sm muted">The easiest way to draw these is the live editor on the camera page.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</form>
+{% endblock %}
