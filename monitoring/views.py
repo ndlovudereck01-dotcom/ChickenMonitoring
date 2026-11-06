@@ -124,9 +124,16 @@ def _active_runs_with_occupancy():
 
 def _cameras_with_last_run():
     latest = DetectionRun.objects.filter(camera=OuterRef("pk")).order_by("-created_at")
+    # Prefer the newest run that actually produced a thumbnail, so a cancelled
+    # live session does not blank out the card.
+    with_thumb = (
+        DetectionRun.objects.filter(camera=OuterRef("pk"))
+        .exclude(thumbnail="")
+        .order_by("-created_at")
+    )
     return Camera.objects.annotate(
-        last_run_id=Subquery(latest.values("id")[:1]),
-        last_thumb=Subquery(latest.values("thumbnail")[:1]),
+        last_run_id=Subquery(with_thumb.values("id")[:1]),
+        last_thumb=Subquery(with_thumb.values("thumbnail")[:1]),
         last_unique=Subquery(latest.values("unique_birds")[:1]),
     )
 

@@ -628,6 +628,10 @@ def _execute_video(run: DetectionRun) -> None:
     )
 
     processor = FrameProcessor(run, config, source_label=run.camera.name if run.camera else "video")
+    # Report the weights that actually loaded (a missing custom checkpoint falls back).
+    DetectionRun.objects.filter(pk=run.pk).update(
+        detector_model=processor.detector.describe, device=config.device
+    )
     writer = RunWriter(run.pk, sample_interval_s=config.sample_interval_s)
 
     raw_path = Path(settings.OUTPUT_ROOT) / f"{run.pk}-raw.mp4"
@@ -724,7 +728,7 @@ def _execute_camera(run: DetectionRun) -> None:
 
     DetectionRun.objects.filter(pk=run.pk).update(
         frames_total=0,
-        detector_model=Path(config.model_path).name,
+        detector_model=processor.detector.describe,
         device=config.device,
     )
     _merge_run_config(

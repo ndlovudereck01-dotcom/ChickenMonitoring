@@ -24,3 +24,7 @@ datasets/*.zip
 htmlcov/
 *.log
 .DS_Store
+
+# Downloaded detector weights
+yolo11n.pt
+logs/

@@ -1,0 +1,22 @@
+# YOLOv11 dataset for chicken / poultry detection.
+#
+# Layout expected by Ultralytics (paths are relative to this file):
+#
+#   datasets/chickens/
+#     images/train/*.jpg      labels/train/*.txt
+#     images/val/*.jpg        labels/val/*.txt
+#
+# Each label line is:  <class_id> <x_center> <y_center> <width> <height>
+# with all coordinates normalised to 0-1.
+#
+# Start from a public poultry dataset (for example "chicken detection" sets on
+# Roboflow Universe or Kaggle), or label 300-800 of your own frames with
+# LabelImg / CVAT. Keep the same camera angle and lighting as production.
+
+path: ./chickens
+
+train: images/train
+val: images/val
+
+names:
+  0: chicken

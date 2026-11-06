@@ -102,14 +102,25 @@ class Detector:
             torch.set_num_threads(torch_threads)
 
         weights_path = Path(weights)
+        resolved = weights
         if not weights_path.exists():
-            # Ultralytics can fetch official checkpoints by name (e.g. yolo11n.pt).
-            logger.info("Weights %s not found locally; ultralytics will resolve '%s'.", weights, weights)
-        self.requested_weights = weights
+            if len(weights_path.parts) > 1:
+                # A configured local checkpoint that is missing must not break runs:
+                # fall back to the stock YOLO11 nano model (COCO "bird" class).
+                logger.warning(
+                    "Custom weights %s not found; falling back to yolo11n.pt", weights
+                )
+                resolved = "yolo11n.pt"
+            else:
+                # Ultralytics can fetch official checkpoints by name (e.g. yolo11n.pt).
+                logger.info(
+                    "Weights %s not found locally; ultralytics will resolve '%s'.", weights, weights
+                )
+        self.requested_weights = resolved
         try:
-            self._model = YOLO(str(weights_path) if weights_path.exists() else weights)
+            self._model = YOLO(str(weights_path) if weights_path.exists() else resolved)
         except Exception as exc:
-            raise DetectorError(f"Unable to load YOLO weights '{weights}': {exc}") from exc
+            raise DetectorError(f"Unable to load YOLO weights '{resolved}': {exc}") from exc
 
         self.names: dict[int, str] = dict(self._model.names or {})
         self.class_ids = resolve_class_ids(self.names, class_ids)
@@ -117,7 +128,9 @@ class Detector:
         self._lock = threading.Lock()
         logger.info(
             "Loaded detector weights=%s device=%s classes=%s",
-            weights, device, self.class_ids if self.class_ids is not None else "all",
+            self.describe,
+            device,
+            self.class_ids if self.class_ids is not None else "all",
         )
 
     @property
