@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import shutil
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
 
 class Command(BaseCommand):
@@ -25,11 +28,60 @@ class Command(BaseCommand):
         parser.add_argument("--workers", type=int, default=2)
         parser.add_argument("--name", default="chicken_yolo11", help="Run name.")
         parser.add_argument(
-            "--install/--no-install",
-            dest="install",
+            "--install",
+            action=argparse.BooleanOptionalAction,
             default=True,
-            help="Copy best.pt to models/chicken_yolo11.pt (default: yes).",
+            help="Copy best.pt to models/chicken_yolo11.pt (default: yes; use --no-install to keep the current model).",
         )
+
+    def _precheck(self, data_path: Path) -> None:
+        """Fail early on an empty/unusable dataset instead of inside ultralytics."""
+        try:
+            import yaml
+
+            config = yaml.safe_load(data_path.read_text(encoding="utf-8")) or {}
+        except Exception as exc:
+            raise CommandError(f"Cannot read dataset config {data_path}: {exc}") from exc
+
+        root = Path(config.get("path") or data_path.parent)
+        if not root.is_absolute():
+            root = (data_path.parent / root).resolve()
+
+        counts: dict[str, int] = {}
+        for split in ("train", "val"):
+            entry = config.get(split)
+            target = None
+            if isinstance(entry, str):
+                target = Path(entry)
+                if not target.is_absolute():
+                    target = root / target
+            if target is None or not target.is_dir():
+                counts[split] = 0
+                continue
+            counts[split] = sum(
+                1 for item in target.iterdir() if item.suffix.lower() in IMAGE_SUFFIXES
+            )
+
+        self.stdout.write(
+            f"Dataset {data_path}: train={counts['train']} val={counts['val']} images"
+        )
+        if counts["train"] == 0:
+            raise CommandError(
+                f"No training images under {root}. Build a dataset from footage first:\n"
+                "  python manage.py build_dataset --source <footage-dir-or-video>"
+            )
+        if counts["val"] == 0:
+            raise CommandError(
+                f"No validation images under {root}. Re-run build_dataset without --val-ratio 0 "
+                "so the model has frames it never trained on."
+            )
+        if counts["train"] < 50:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Fewer than 50 training images: expect a noisy mAP. Add more footage or "
+                    "lower --interval when building the dataset."
+                )
+            )
 
     def handle(self, *args, **options):
         try:
@@ -43,6 +95,8 @@ class Command(BaseCommand):
                 f"Dataset config not found: {data_path}. "
                 "Start from datasets/chickens.yaml and point it at your images."
             )
+
+        self._precheck(data_path)
 
         self.stdout.write(
             f"Training {options['model']} on {data_path} "

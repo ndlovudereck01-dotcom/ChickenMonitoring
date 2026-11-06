@@ -27,6 +27,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from . import labeling
 from .forms import CameraForm, GeometryForm, VideoUploadForm, ZoneForm
 from .ml.live import BOUNDARY, live_frame_age, mjpeg_stream, read_live_frame
 from .ml.media import MediaError, file_sha256, probe_video
@@ -765,6 +766,79 @@ def alert_acknowledge(request, pk: int):
     audit(request, "alert.acknowledge", target=alert, detail=alert.kind)
     messages.success(request, "Alert acknowledged.")
     return redirect(request.POST.get("next") or "monitoring:alerts")
+
+
+# ---------------------------------------------------------------------------
+# Training data review (annotation)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@manager_required
+@require_GET
+def dataset_review(request):
+    items = labeling.list_images()
+    return render(
+        request,
+        "monitoring/dataset_review.html",
+        {
+            "stats": labeling.summary(items),
+            "images_url": reverse("monitoring:api_dataset_images"),
+            "save_url": reverse("monitoring:api_dataset_save"),
+        },
+    )
+
+
+@login_required
+@manager_required
+@require_GET
+def api_dataset_images(request):
+    items = labeling.list_images()
+    for item in items:
+        item["url"] = reverse("monitoring:dataset_image", args=[item["split"], item["stem"]])
+    return JsonResponse(
+        {"ok": True, "images": items, "summary": labeling.summary(items)},
+        json_dumps_params={"separators": (",", ":")},
+    )
+
+
+@login_required
+@manager_required
+@require_GET
+def dataset_image(request, split: str, stem: str):
+    try:
+        path = labeling.resolve_image(split, stem)
+    except (labeling.LabelError, FileNotFoundError):
+        raise Http404("No such dataset image.")
+    response = FileResponse(open(path, "rb"), content_type="image/jpeg")
+    response["Cache-Control"] = "private, max-age=300"
+    return response
+
+
+@login_required
+@manager_required
+@require_POST
+def api_dataset_save(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "error": "Invalid JSON payload."}, status=400)
+
+    try:
+        result = labeling.save_annotation(
+            str(payload.get("split", "")),
+            str(payload.get("stem", "")),
+            payload.get("boxes", []),
+            bool(payload.get("reviewed")),
+        )
+    except labeling.LabelError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    except FileNotFoundError:
+        return JsonResponse({"ok": False, "error": "Image not found."}, status=404)
+
+    return JsonResponse({"ok": True, **result, "summary": labeling.summary()})
 
 
 # ---------------------------------------------------------------------------

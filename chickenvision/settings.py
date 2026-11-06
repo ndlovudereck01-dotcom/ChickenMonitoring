@@ -275,6 +275,9 @@ MODEL_DIR = BASE_DIR / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
 CHICKEN_MODEL_PATH = os.environ.get("CHICKEN_MODEL_PATH", str(MODEL_DIR / "chicken_yolo11.pt"))
+CHICKEN_DATASET_DIR = Path(
+    os.environ.get("CHICKEN_DATASET_DIR", str(BASE_DIR / "datasets" / "chickens"))
+)
 CHICKEN_CLASS_IDS = os.environ.get("CHICKEN_CLASS_IDS", "").strip()
 CHICKEN_CONFIDENCE = env_float("CHICKEN_CONFIDENCE", 0.35)
 CHICKEN_IOU = env_float("CHICKEN_IOU", 0.50)

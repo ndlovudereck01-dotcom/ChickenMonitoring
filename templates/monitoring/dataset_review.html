@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Label training data{% endblock %}
+{% block page_title %}Label training data{% endblock %}
+{% block page_subtitle %}Correct the detector's boxes — these labels are what your chicken model learns{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-ghost btn-sm" href="{% url 'monitoring:dashboard' %}">Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-4">
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Frames</span>
+    <span class="stat-value" data-label-stat="images">{{ stats.images }}</span>
+    <span class="stat-foot">{{ stats.root|truncatechars:42 }}</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent"></span>
+    <span class="stat-label">Reviewed</span>
+    <span class="stat-value" data-label-stat="reviewed">{{ stats.reviewed }}</span>
+    <span class="stat-foot">approved for training</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent is-amber"></span>
+    <span class="stat-label">Pending</span>
+    <span class="stat-value" data-label-stat="pending">{{ stats.pending }}</span>
+    <span class="stat-foot">waiting for a human check</span>
+  </div>
+  <div class="card stat">
+    <span class="stat-accent is-muted"></span>
+    <span class="stat-label">Boxes</span>
+    <span class="stat-value" data-label-stat="boxes">{{ stats.boxes }}</span>
+    <span class="stat-foot">across the dataset</span>
+  </div>
+</div>
+
+<div class="card mt-16" id="label-app"
+     data-images-url="{{ images_url }}"
+     data-save-url="{{ save_url }}"
+     data-has-images="{% if stats.images %}1{% else %}0{% endif %}">
+  <div class="card-head">
+    <h2>Frame <span data-label-counter>0 / 0</span></h2>
+    <span class="badge is-muted" data-label-state>not reviewed</span>
+    <span class="muted ml-auto text-sm" data-label-file></span>
+    <button type="button" class="btn btn-sm btn-ghost" data-label-prev disabled>Previous</button>
+    <button type="button" class="btn btn-sm btn-ghost" data-label-next disabled>Next</button>
+  </div>
+  <div class="card-body">
+    {% if stats.images %}
+      <div class="label-stage">
+        <canvas id="label-canvas" width="960" height="540" tabindex="0" role="application"
+                aria-label="Annotation canvas. Drag on empty space to draw a box around a bird, drag a box to move it, drag a corner to resize it."></canvas>
+      </div>
+      <div class="live-toolbar">
+        <button type="button" class="btn btn-sm btn-ghost" data-label-delete disabled>Delete box</button>
+        <span class="sep"></span>
+        <span class="muted text-sm" data-label-info>Loading frames…</span>
+        <button type="button" class="btn btn-sm btn-ghost ml-auto" data-label-save disabled>Save</button>
+        <button type="button" class="btn btn-sm btn-primary" data-label-approve disabled>Save &amp; approve</button>
+      </div>
+      <p class="helptext mt-8">
+        Draw a box around <strong>every</strong> bird, including chicks and partly hidden ones. Drag inside a box to
+        move it, drag a corner to resize, press <strong>Del</strong> to remove the selected box.
+        <strong>S</strong> saves, <strong>A</strong> saves and approves, <strong>←</strong>/<strong>→</strong> change frame.
+        Frames with no birds are useful too: approve them with zero boxes.
+      </p>
+    {% else %}
+      <p class="note">
+        No dataset found yet. Build one from downloaded photos or your own footage:
+        <code>python manage.py build_dataset --source datasets/raw/web</code>, then reload this page.
+      </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {% if stats.images %}<script src="{% static 'monitoring/js/labeling.js' %}" defer></script>{% endif %}
+{% endblock %}

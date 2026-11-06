@@ -118,23 +118,65 @@ Everything comes from `.env` (see `.env.example` for the full list).
 | `CHICKEN_MAX_UPLOAD_MB` | `512` | Upload limit |
 | `CHICKEN_MAX_VIDEO_SECONDS` | `14400` | Reject longer videos |
 | `CHICKEN_LIVE_FPS` | `10` | Annotated frames published per second |
+| `CHICKEN_DATASET_DIR` | `datasets/chickens` | Dataset the Training data page edits and `train_model` reads |
 
 ## Training a better model
 
 The generic COCO `bird` class is a baseline. For production accuracy, fine-tune YOLOv11
-on frames from your own houses:
+on frames from your own houses. You do not need a hand-labelled dataset to start:
+`build_dataset` extracts evenly spaced frames from your footage and labels them with the
+detector currently in use (pseudo-labelling), then splits train/val and writes the YAML.
 
 ```bash
-# 1. Put labelled images in datasets/chickens/{images,labels}/{train,val}
-#    (see datasets/chickens.yaml for the expected layout, 1 class: chicken)
-# 2. Train (CPU works for small datasets, a GPU is much faster)
-.venv/bin/python manage.py train_model --data datasets/chickens.yaml --epochs 100 --imgsz 640 --device cpu
-# 3. The best checkpoint is installed as models/chicken_yolo11.pt
-.venv/bin/python manage.py run_worker    # restart the worker to load it
+# 0. (Optional) No footage yet? Pull openly licensed poultry photos and clips.
+#    Licence + author of every file is written to datasets/raw/web/ATTRIBUTION.md.
+.venv/bin/python manage.py fetch_photos --limit 40 --videos 2
+
+# 1. Drop footage (MP4/MOV/AVI/MKV/WebM) or stills into datasets/raw/
+mkdir -p datasets/raw        # e.g. datasets/raw/house1/day1.mp4
+
+# 2. Frames + labels + split. --interval = seconds between sampled frames.
+.venv/bin/python manage.py build_dataset --source datasets/raw datasets/raw/web \
+    --interval 1.5 --max-per-video 400 --review datasets/review
+
+# 3. Correct the boxes in the app: sign in as an operator/admin and open
+#    /datasets/review/ (nav: Training data). Draw, move, resize or delete boxes;
+#    “Save & approve” marks a frame as human-checked. Labels are written straight
+#    into datasets/chickens/labels/, so nothing needs exporting.
+
+# 4. Fine-tune (CPU is fine for a few hundred frames; a GPU is much faster)
+.venv/bin/python manage.py train_model --data datasets/chickens.yaml \
+    --epochs 40 --imgsz 512 --batch 8 --device cpu
+
+# 5. Restart the worker so it loads models/chicken_yolo11.pt
+.venv/bin/python manage.py run_worker
 ```
 
-`train_model` copies `best.pt` to `models/chicken_yolo11.pt`; class names are read from the
-checkpoint, so a poultry-named class is detected automatically.
+What the pieces do:
+
+* `fetch_photos` searches Wikimedia Commons with `--query` (repeatable), keeps only
+  CC0/public-domain/CC BY/CC BY-SA/GFDL media, records `sources.json` and
+  `ATTRIBUTION.md`, and skips files already downloaded so an interrupted run resumes.
+  Keep that attribution with any redistributed dataset or model.
+* `build_dataset` accepts `--source` more than once, samples every N seconds, caps frames
+  per video, drops frames with no birds (unless `--keep-empty` for background samples),
+  filters boxes outside `--min-area`/`--max-area`, and holds out `--val-ratio` of each
+  source for validation so validation frames are not near-duplicates of training frames.
+  With `--labels DIR` it uses your own YOLO `.txt` files instead of auto-labelling.
+* The **Training data** page (`/datasets/review/`) is the annotator. Boxes drawn or edited
+  there are saved as YOLO `.txt` next to the images, review state in `review_state.json`,
+  and empty approved frames are kept as background samples. It reads and writes
+  `CHICKEN_DATASET_DIR` (`datasets/chickens` by default), so it can never drift from what
+  `train_model` reads. Keyboard: `S` save, `A` save and approve, `←`/`→` change frame,
+  `Del` remove the selected box.
+* `train_model` checks the dataset first (train and val images must exist) and copies
+  `best.pt` to `models/chicken_yolo11.pt`; class names are read from the checkpoint, so a
+  poultry-named class is detected automatically. `--no-install` keeps the checkpoint in
+  `runs/train/<name>/weights/` without replacing the production model.
+* Auto-labels can only be as good as the model that produced them, so the reported mAP is
+  optimistic until a human has corrected the boxes. Review, then re-train.
+* Restart the worker after installing new weights — a running worker keeps its loaded model
+  in memory, and `python manage.py doctor` shows which checkpoint is present.
 
 ## Architecture
 

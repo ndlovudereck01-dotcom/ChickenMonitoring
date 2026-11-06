@@ -17,6 +17,10 @@ models/*.pt
 models/*.onnx
 runs/
 datasets/*.zip
+# Training data and downloaded media stay local (licences vary; see the ATTRIBUTION files)
+datasets/chickens/
+datasets/review/
+datasets/raw/
 
 # Tooling
 .pytest_cache/

@@ -55,6 +55,12 @@
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 20V4m0 16h16"/><path d="M8 16v-4m4 4V8m4 8v-6"/></svg>
         Reports
       </a>
+      {% if request.user.is_manager %}
+        <a class="nav-link {% if request.resolver_match.url_name == 'dataset_review' %}is-active{% endif %}" href="{% url 'monitoring:dataset_review' %}">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h4L11 6h7.5A1.5 1.5 0 0 1 20 7.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-13Z"/><path d="M8.5 14.5l2-2.5 1.8 2 1.7-1.6 1.5 2.1"/></svg>
+          Training data
+        </a>
+      {% endif %}
       {% if request.user.is_admin_role %}
         <a class="nav-link {% if request.resolver_match.url_name == 'audit' %}is-active{% endif %}" href="{% url 'monitoring:audit' %}">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/></svg>

@@ -35,6 +35,15 @@ urlpatterns = [
     # JSON APIs
     path("api/runs/<int:pk>/progress/", views.api_run_progress, name="api_run_progress"),
     path("api/cameras/<int:pk>/live/", views.api_camera_live, name="api_camera_live"),
+    # Training data review
+    path("datasets/review/", views.dataset_review, name="dataset_review"),
+    path("datasets/review/api/images/", views.api_dataset_images, name="api_dataset_images"),
+    path("datasets/review/api/save/", views.api_dataset_save, name="api_dataset_save"),
+    path(
+        "datasets/review/image/<str:split>/<str:stem>.jpg",
+        views.dataset_image,
+        name="dataset_image",
+    ),
     # Alerts, reports, audit
     path("alerts/", views.alert_list, name="alerts"),
     path("alerts/<int:pk>/acknowledge/", views.alert_acknowledge, name="alert_ack"),
